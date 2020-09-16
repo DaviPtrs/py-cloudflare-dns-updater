@@ -4,8 +4,20 @@ import sys
 import dotenv
 import os
 import time
+import logging as log
 
 dotenv.load_dotenv()
+DEBUG = os.getenv('DEBUG')
+if DEBUG:
+    log_level = log.DEBUG
+else:
+    log_level = log.INFO
+log.basicConfig(
+    stream=sys.stdout, 
+    level=log_level, 
+    format='[%(asctime)s] {%(filename)s:%(lineno)d} %(levelname)s - %(message)s'
+    )
+log.info("Initializing global parameters")
 
 # DEFINING GLOBAL VARIABLES
 
@@ -26,6 +38,7 @@ HEADERS = {
 def zone_id():
     url = f'https://api.cloudflare.com/client/v4/zones?name={CF_ZONE}&status=active'
     response = requests.get(url,headers=HEADERS)
+    log.debug(response)
     assert response.status_code == 200
     response = response.json()
     return response['result'][0]['id']
@@ -33,16 +46,21 @@ def zone_id():
 def record_id():
     url = f'https://api.cloudflare.com/client/v4/zones/{zone_id()}/dns_records?type=A&name={CF_RECORD}'
     response = requests.get(url,headers=HEADERS)
+    log.debug(response)
     assert response.status_code == 200
     response = response.json()
     return response['result'][0]['id']
 
 try:
+    log.info('Fetching Zone Id')
     ZONE_ID = zone_id()
+    log.debug(f'Zone Id: {ZONE_ID}')
+    log.info('Fetching DNS Record Id')
     RECORD_ID = record_id()
+    log.debug(f'DNS Record Id: {RECORD_ID}')
 except requests.ConnectionError as err:
-    print("Unable to fetch Zone ID and/or Record ID. Check your internet connection")
-    print(err)
+    log.error("Unable to fetch Zone ID and/or Record ID. Check your internet connection")
+    log.error(err)
     sys.exit(1)
 
 # END OF GLOBAL VARIABLE DEFINITION
@@ -56,6 +74,7 @@ def actual_ip():
 def recorded_ip():
     url = f'https://api.cloudflare.com/client/v4/zones/{ZONE_ID}/dns_records/{RECORD_ID}'
     response = requests.get(url,headers=HEADERS)
+    log.debug(response)
     assert response.status_code == 200
     response = response.json()
     return response['result']['content']
@@ -70,28 +89,30 @@ def update_dns_record():
         'proxied': CF_RECORD_PROXIED,
     }
     response = requests.put(url,data=json.dumps(data),headers=HEADERS)
+    log.debug(response)
     assert response.status_code == 200
 
 def check_n_update():
     new_ip = actual_ip()
     old_ip = recorded_ip()
     if new_ip != old_ip:
-        print(f"New ip: {new_ip}")
-        print(f"Old ip: {old_ip}")
-        print("Updating DNS Record...")
+        log.info("Public IP change detected")
+        log.info(f"New ip: {new_ip}")
+        log.info(f"Old ip: {old_ip}")
+        log.info("Updating DNS Record...")
         update_dns_record()
-        print("DNS Record updated!")
+        log.info("DNS Record updated!")
 
 if __name__ == "__main__":
     connection_error_flag = False
-    print("Checking differences between public IP and DNS Record IP")
-    print(f"Time interval: {TIME_INTERVAL} seconds.")
+    log.info("Public IP Change listener started")
+    log.info(f"Time interval: {TIME_INTERVAL} seconds")
     while True:
         try:
             check_n_update()
             connection_error_flag = False
         except requests.ConnectionError:
             if not connection_error_flag:
-                print("Error. Check your internet connection")
+                log.error("Error. Check your internet connection")
             connection_error_flag = True
         time.sleep(TIME_INTERVAL)

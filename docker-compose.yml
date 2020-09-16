@@ -1,0 +1,10 @@
+version: '3.2'
+services: 
+  dns-updater:
+    container_name: dns-updater
+    image: dns-updater-image:latest
+    build:
+      context: .
+    restart: unless-stopped
+    volumes: 
+      - '.:/app'

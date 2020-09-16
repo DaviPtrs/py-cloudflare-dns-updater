@@ -3,6 +3,7 @@ import json
 import sys
 import dotenv
 import os
+import time
 
 dotenv.load_dotenv()
 
@@ -11,10 +12,11 @@ dotenv.load_dotenv()
 IP_API = 'https://api.ipify.org?format=json'
 CF_ZONE = os.getenv('CF_ZONE')
 CF_RECORD = os.getenv('CF_RECORD')
-CF_RECORD_TTL = os.getenv('CF_RECORD_TTL', 1)
-CF_RECORD_PROXIED = os.getenv('CF_RECORD_PROXIED', True)
+CF_RECORD_TTL = int(os.getenv('CF_RECORD_TTL', 1))
+CF_RECORD_PROXIED = bool(os.getenv('CF_RECORD_PROXIED', True))
 CF_AUTH_EMAIL = os.getenv('CF_AUTH_EMAIL')
 CF_AUTH_KEY = os.getenv('CF_AUTH_KEY')
+TIME_INTERVAL = int(os.getenv('TIME_INTERVAL', 3600))
 HEADERS = {
     'X-Auth-Email': CF_AUTH_EMAIL,
     'X-Auth-Key': CF_AUTH_KEY,
@@ -83,12 +85,13 @@ def check_n_update():
 if __name__ == "__main__":
     connection_error_flag = False
     print("Checking differences between public IP and DNS Record IP")
-
-    try:
-        check_n_update()
-        connection_error_flag = False
-    except requests.ConnectionError:
-        if not connection_error_flag:
-            print("Error. Check your internet connection")
-        connection_error_flag = True
-    
+    print(f"Time interval: {TIME_INTERVAL} seconds.")
+    while True:
+        try:
+            check_n_update()
+            connection_error_flag = False
+        except requests.ConnectionError:
+            if not connection_error_flag:
+                print("Error. Check your internet connection")
+            connection_error_flag = True
+        time.sleep(TIME_INTERVAL)

@@ -28,8 +28,6 @@ def zone_id():
     response = response.json()
     return response['result'][0]['id']
 
-ZONE_ID = zone_id()
-
 def record_id():
     url = f'https://api.cloudflare.com/client/v4/zones/{zone_id()}/dns_records?type=A&name={CF_RECORD}'
     response = requests.get(url,headers=HEADERS)
@@ -37,7 +35,13 @@ def record_id():
     response = response.json()
     return response['result'][0]['id']
 
-RECORD_ID = record_id()
+try:
+    ZONE_ID = zone_id()
+    RECORD_ID = record_id()
+except requests.ConnectionError as err:
+    print("Unable to fetch Zone ID and/or Record ID. Check your internet connection")
+    print(err)
+    sys.exit(1)
 
 # END OF GLOBAL VARIABLE DEFINITION
 
@@ -66,9 +70,7 @@ def update_dns_record():
     response = requests.put(url,data=json.dumps(data),headers=HEADERS)
     assert response.status_code == 200
 
-if __name__ == "__main__":
-    print("Checking differences between public IP and DNS Record IP")
-
+def check_n_update():
     new_ip = actual_ip()
     old_ip = recorded_ip()
     if new_ip != old_ip:
@@ -77,3 +79,16 @@ if __name__ == "__main__":
         print("Updating DNS Record...")
         update_dns_record()
         print("DNS Record updated!")
+
+if __name__ == "__main__":
+    connection_error_flag = False
+    print("Checking differences between public IP and DNS Record IP")
+
+    try:
+        check_n_update()
+        connection_error_flag = False
+    except requests.ConnectionError:
+        if not connection_error_flag:
+            print("Error. Check your internet connection")
+        connection_error_flag = True
+    
